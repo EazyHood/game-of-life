@@ -1,0 +1,42 @@
+name: Validate C++ CLI regressions
+on:
+  push:
+    branches: [validate-cli-regressions-2]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        issue: [60, 78]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - run: sudo apt-get update && sudo apt-get install --yes libboost-all-dev clang-format-22 clang-tidy-22
+      - name: Reproduce and resolve each CLI regression
+        env:
+          ISSUE: ${{ matrix.issue }}
+          CLANG_FORMAT: clang-format-22
+          CLANG_TIDY: clang-tidy-22
+        run: |
+          set -eu
+          git worktree add --detach "$RUNNER_TEMP/candidate" HEAD^
+          cd "$RUNNER_TEMP/candidate"
+          PATCH="$GITHUB_WORKSPACE/.github/validation/$ISSUE.patch"
+          git apply --include='*tests/*' "$PATCH"
+          if [ "$ISSUE" = 60 ]; then
+            make fast
+            if python3 cpp/fast/tests/check_exit.py; then exit 1; fi
+          else
+            if make slow-test; then exit 1; fi
+          fi
+          git apply -R --include='*tests/*' "$PATCH"
+          git apply "$PATCH"
+          make fast fast-test slow slow-test
+          make style
+          git -c core.whitespace=cr-at-eol diff --check
