@@ -1,0 +1,112 @@
+diff --git a/cpp/fast/Makefile b/cpp/fast/Makefile
+index 93a20cc..f877a76 100644
+--- a/cpp/fast/Makefile
++++ b/cpp/fast/Makefile
+@@ -22,9 +22,10 @@ all: build
+ build: $(OBJECTS)
+ 	g++ $(LDFLAGS) $(OBJECTS) -lboost_program_options -o fast_life
+ 
+-test: $(LIB_OBJECTS) $(TEST_OBJECTS)
++test: build $(LIB_OBJECTS) $(TEST_OBJECTS)
+ 	g++ $(LDFLAGS) $(LIB_OBJECTS) $(TEST_OBJECTS) -lboost_unit_test_framework -lboost_program_options -o fast_test
+ 	./fast_test --log_level=all
++	python3 tests/check_exit.py
+ 
+ %.o: %.cpp $(HEADERS)
+ 	g++ $(CPPFLAGS) -c -Iinclude $< -o $@
+diff --git a/cpp/fast/src/arg_parse.cpp b/cpp/fast/src/arg_parse.cpp
+index 1b902d3..991b620 100644
+--- a/cpp/fast/src/arg_parse.cpp
++++ b/cpp/fast/src/arg_parse.cpp
+@@ -11,7 +11,6 @@
+ #include "../include/args_process.h"
+ #include "../include/args_valid.h"
+ 
+-using std::cout;
+ using std::exit;
+ using std::pair;
+ 
+@@ -24,8 +23,8 @@ pair<int, int> Parse::get_size(string const& str) {
+   if (Valid::is_valid(str)) {
+     return Process::convert(Process::split(str));
+   }
+-  cout << "Incorrect arguments in size option" << "\n";
+-  exit(0);  // NOLINT(concurrency-mt-unsafe)
++  std::cerr << "Incorrect arguments in size option" << "\n";
++  exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
+ }
+ 
+ vector<pair<int, int>> Parse::get_alive(
+@@ -37,13 +36,14 @@ vector<pair<int, int>> Parse::get_alive(
+       const pair<int, int> processes = Process::convert(Process::split(str));
+       if (processes.first <= 0 || processes.first > byN ||
+           processes.second <= 0 || processes.second > byM) {
+-        cout << "You entered cells out of range of the grid " << str << "\n";
+-        exit(0);  // NOLINT(concurrency-mt-unsafe)
++        std::cerr << "You entered cells out of range of the grid " << str
++                  << "\n";
++        exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
+       }
+       res.emplace_back(processes);
+     } else {
+-      cout << "You entered incorrect arguments in put option" << "\n";
+-      exit(0);  // NOLINT(concurrency-mt-unsafe)
++      std::cerr << "You entered incorrect arguments in put option" << "\n";
++      exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
+     }
+   }
+   return res;
+diff --git a/cpp/fast/src/main.cpp b/cpp/fast/src/main.cpp
+index 7bbe3d7..c70c4db 100644
+--- a/cpp/fast/src/main.cpp
++++ b/cpp/fast/src/main.cpp
+@@ -62,14 +62,14 @@ int main(int ac, char* av[]) {  // NOLINT
+   Field field = Field(size);
+   field.read_and_set(put);
+   if (varMap["sleep"].as<int>() < 0) {
+-    cout << "Incorrect sleep option value" << "\n";
+-    exit(0);  // NOLINT(concurrency-mt-unsafe)
++    std::cerr << "Incorrect sleep option value" << "\n";
++    exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
+   }
+ 
+   if (varMap.count("batch") > 0) {
+     if (varMap["batch"].as<int>() < 0) {
+-      cout << "Incorrect batch option value" << "\n";
+-      exit(0);  // NOLINT(concurrency-mt-unsafe)
++      std::cerr << "Incorrect batch option value" << "\n";
++      exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
+     }
+     const Game game = Game(Grid(size, field),
+       Repeats(varMap["batch"].as<int>()), varMap["sleep"].as<int>());
+diff --git a/cpp/fast/tests/check_exit.py b/cpp/fast/tests/check_exit.py
+new file mode 100644
+index 0000000..037f26b
+--- /dev/null
++++ b/cpp/fast/tests/check_exit.py
+@@ -0,0 +1,25 @@
++# SPDX-FileCopyrightText: Copyright (c) 2026 Objectionary
++# SPDX-License-Identifier: MIT
++
++"""Exercise error exit statuses of the built fast CLI."""
++
++from pathlib import Path
++import subprocess
++
++executable = str(Path(__file__).resolve().parents[1] / 'fast_life')
++defaults = ['--size', '3x3', '--put', '1x1', '--batch', '0', '--sleep', '0']
++for option, value, message in [
++    ('--size', '0x3', 'Incorrect arguments in size option'),
++    ('--put', '4x1', 'You entered cells out of range'),
++    ('--put', 'invalid', 'You entered incorrect arguments in put option'),
++    ('--batch', '-1', 'Incorrect batch option value'),
++    ('--sleep', '-1', 'Incorrect sleep option value'),
++]:
++    arguments = defaults.copy()
++    arguments[arguments.index(option) + 1] = value
++    result = subprocess.run([executable, *arguments], capture_output=True, text=True, timeout=5)
++    assert result.returncode != 0, (arguments, result)
++    assert message in result.stderr and not result.stdout, (arguments, result)
++for arguments in [defaults, ['--help']]:
++    result = subprocess.run([executable, *arguments], capture_output=True, text=True, timeout=5)
++    assert result.returncode == 0 and not result.stderr, (arguments, result)
