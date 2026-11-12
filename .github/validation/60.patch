@@ -1,0 +1,314 @@
+diff --git a/cpp/fast/Makefile b/cpp/fast/Makefile
+index 93a20cc..f877a76 100644
+--- a/cpp/fast/Makefile
++++ b/cpp/fast/Makefile
+@@ -22,9 +22,10 @@ all: build
+ build: $(OBJECTS)
+ 	g++ $(LDFLAGS) $(OBJECTS) -lboost_program_options -o fast_life
+ 
+-test: $(LIB_OBJECTS) $(TEST_OBJECTS)
++test: build $(LIB_OBJECTS) $(TEST_OBJECTS)
+ 	g++ $(LDFLAGS) $(LIB_OBJECTS) $(TEST_OBJECTS) -lboost_unit_test_framework -lboost_program_options -o fast_test
+ 	./fast_test --log_level=all
++	python3 tests/check_exit.py
+ 
+ %.o: %.cpp $(HEADERS)
+ 	g++ $(CPPFLAGS) -c -Iinclude $< -o $@
+diff --git a/cpp/fast/src/arg_parse.cpp b/cpp/fast/src/arg_parse.cpp
+index 1b902d3..c060e18 100644
+--- a/cpp/fast/src/arg_parse.cpp
++++ b/cpp/fast/src/arg_parse.cpp
+@@ -1,50 +1,49 @@
+-// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
+-// SPDX-License-Identifier: MIT
+-
+-#include "../include/arg_parse.h"
+-
+-#include <cstdlib>
+-#include <iostream>
+-#include <utility>
+-#include <vector>
+-
+-#include "../include/args_process.h"
+-#include "../include/args_valid.h"
+-
+-using std::cout;
+-using std::exit;
+-using std::pair;
+-
+-const int SIZE = 20;
+-
+-pair<int, int> Parse::get_size(string const& str) {
+-  if (str.empty()) {
+-    return {SIZE, SIZE};
+-  }
+-  if (Valid::is_valid(str)) {
+-    return Process::convert(Process::split(str));
+-  }
+-  cout << "Incorrect arguments in size option" << "\n";
+-  exit(0);  // NOLINT(concurrency-mt-unsafe)
+-}
+-
+-vector<pair<int, int>> Parse::get_alive(
+-  vector<string> const& field, int byN, int byM) {
+-  vector<pair<int, int>> res;
+-  for (auto const& str : field) {
+-    const Valid valid = Valid();
+-    if (Valid::is_valid(str)) {
+-      const pair<int, int> processes = Process::convert(Process::split(str));
+-      if (processes.first <= 0 || processes.first > byN ||
+-          processes.second <= 0 || processes.second > byM) {
+-        cout << "You entered cells out of range of the grid " << str << "\n";
+-        exit(0);  // NOLINT(concurrency-mt-unsafe)
+-      }
+-      res.emplace_back(processes);
+-    } else {
+-      cout << "You entered incorrect arguments in put option" << "\n";
+-      exit(0);  // NOLINT(concurrency-mt-unsafe)
+-    }
+-  }
+-  return res;
+-}
++// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
++// SPDX-License-Identifier: MIT
++
++#include "../include/arg_parse.h"
++
++#include <cstdlib>
++#include <iostream>
++#include <utility>
++#include <vector>
++
++#include "../include/args_process.h"
++#include "../include/args_valid.h"
++
++using std::exit;
++using std::pair;
++
++const int SIZE = 20;
++
++pair<int, int> Parse::get_size(string const& str) {
++  if (str.empty()) {
++    return {SIZE, SIZE};
++  }
++  if (Valid::is_valid(str)) {
++    return Process::convert(Process::split(str));
++  }
++  std::cerr << "Incorrect arguments in size option" << "\n";
++  exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
++}
++
++vector<pair<int, int>> Parse::get_alive(
++  vector<string> const& field, int byN, int byM) {
++  vector<pair<int, int>> res;
++  for (auto const& str : field) {
++    const Valid valid = Valid();
++    if (Valid::is_valid(str)) {
++      const pair<int, int> processes = Process::convert(Process::split(str));
++      if (processes.first <= 0 || processes.first > byN ||
++          processes.second <= 0 || processes.second > byM) {
++        std::cerr << "You entered cells out of range of the grid " << str << "\n";
++        exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
++      }
++      res.emplace_back(processes);
++    } else {
++      std::cerr << "You entered incorrect arguments in put option" << "\n";
++      exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
++    }
++  }
++  return res;
++}
+diff --git a/cpp/fast/src/main.cpp b/cpp/fast/src/main.cpp
+index 7bbe3d7..949373e 100644
+--- a/cpp/fast/src/main.cpp
++++ b/cpp/fast/src/main.cpp
+@@ -1,79 +1,79 @@
+-// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
+-// SPDX-License-Identifier: MIT
+-
+-#include <boost/program_options/options_description.hpp>
+-#include <boost/program_options/parsers.hpp>
+-#include <boost/program_options/value_semantic.hpp>
+-#include <boost/program_options/variables_map.hpp>
+-#include <cstdlib>
+-#include <iostream>
+-#include <string>
+-#include <utility>
+-#include <vector>
+-
+-#include "../include/arg_parse.h"
+-#include "../include/field.h"
+-#include "../include/game.h"
+-#include "../include/grid.h"
+-#include "../include/repeats.h"
+-#include "../include/size.h"
+-
+-using std::pair;
+-using std::string;
+-using std::vector;
+-
+-const int DEFAULT_VALUE = 1000;
+-
+-using boost::program_options::options_description;
+-using boost::program_options::parse_command_line;
+-using boost::program_options::value;
+-using boost::program_options::variables_map;
+-
+-int main(int ac, char* av[]) {  // NOLINT
+-
+-  int opt;
+-  options_description desc("Allowed options");
+-  desc.add_options()("help", "produce help message")("batch", value<int>(),
+-    "if set, program runs automatically and you should state the number of "
+-    "cycles")("sleep", value<int>(&opt)->default_value(DEFAULT_VALUE),
+-    "the number of milliseconds to wait before new generation "
+-    "generated, default value is 1000")("size", value<string>(),
+-    "the size of the grid, you can state this value by passing NxM where N "
+-    "the number of rows, M the number of columns, for example --size 20x30")(
+-    "put", value<vector<string>>(),
+-    "initial alive cells, you can type many cells by passing NxM where N the "
+-    "number of row and M the number of column, for example --put 3x7 --put "
+-    "5x4");
+-
+-  variables_map varMap;
+-  store(parse_command_line(ac, av, desc), varMap);
+-  notify(varMap);
+-
+-  if (varMap.count("help") > 0) {
+-    cout << desc << "\n";
+-    return 0;
+-  }
+-
+-  const pair<int, int> parseSize = Parse::get_size(varMap["size"].as<string>());
+-  const vector<pair<int, int>> put = Parse::get_alive(
+-    varMap["put"].as<vector<string>>(), parseSize.first, parseSize.second);
+-
+-  Size size = Size(parseSize.first, parseSize.second);
+-  Field field = Field(size);
+-  field.read_and_set(put);
+-  if (varMap["sleep"].as<int>() < 0) {
+-    cout << "Incorrect sleep option value" << "\n";
+-    exit(0);  // NOLINT(concurrency-mt-unsafe)
+-  }
+-
+-  if (varMap.count("batch") > 0) {
+-    if (varMap["batch"].as<int>() < 0) {
+-      cout << "Incorrect batch option value" << "\n";
+-      exit(0);  // NOLINT(concurrency-mt-unsafe)
+-    }
+-    const Game game = Game(Grid(size, field),
+-      Repeats(varMap["batch"].as<int>()), varMap["sleep"].as<int>());
+-  } else {
+-    const Game game = Game(Grid(size, field));
+-  }
+-}
++// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
++// SPDX-License-Identifier: MIT
++
++#include <boost/program_options/options_description.hpp>
++#include <boost/program_options/parsers.hpp>
++#include <boost/program_options/value_semantic.hpp>
++#include <boost/program_options/variables_map.hpp>
++#include <cstdlib>
++#include <iostream>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "../include/arg_parse.h"
++#include "../include/field.h"
++#include "../include/game.h"
++#include "../include/grid.h"
++#include "../include/repeats.h"
++#include "../include/size.h"
++
++using std::pair;
++using std::string;
++using std::vector;
++
++const int DEFAULT_VALUE = 1000;
++
++using boost::program_options::options_description;
++using boost::program_options::parse_command_line;
++using boost::program_options::value;
++using boost::program_options::variables_map;
++
++int main(int ac, char* av[]) {  // NOLINT
++
++  int opt;
++  options_description desc("Allowed options");
++  desc.add_options()("help", "produce help message")("batch", value<int>(),
++    "if set, program runs automatically and you should state the number of "
++    "cycles")("sleep", value<int>(&opt)->default_value(DEFAULT_VALUE),
++    "the number of milliseconds to wait before new generation "
++    "generated, default value is 1000")("size", value<string>(),
++    "the size of the grid, you can state this value by passing NxM where N "
++    "the number of rows, M the number of columns, for example --size 20x30")(
++    "put", value<vector<string>>(),
++    "initial alive cells, you can type many cells by passing NxM where N the "
++    "number of row and M the number of column, for example --put 3x7 --put "
++    "5x4");
++
++  variables_map varMap;
++  store(parse_command_line(ac, av, desc), varMap);
++  notify(varMap);
++
++  if (varMap.count("help") > 0) {
++    cout << desc << "\n";
++    return 0;
++  }
++
++  const pair<int, int> parseSize = Parse::get_size(varMap["size"].as<string>());
++  const vector<pair<int, int>> put = Parse::get_alive(
++    varMap["put"].as<vector<string>>(), parseSize.first, parseSize.second);
++
++  Size size = Size(parseSize.first, parseSize.second);
++  Field field = Field(size);
++  field.read_and_set(put);
++  if (varMap["sleep"].as<int>() < 0) {
++    std::cerr << "Incorrect sleep option value" << "\n";
++    exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
++  }
++
++  if (varMap.count("batch") > 0) {
++    if (varMap["batch"].as<int>() < 0) {
++      std::cerr << "Incorrect batch option value" << "\n";
++      exit(EXIT_FAILURE);  // NOLINT(concurrency-mt-unsafe)
++    }
++    const Game game = Game(Grid(size, field),
++      Repeats(varMap["batch"].as<int>()), varMap["sleep"].as<int>());
++  } else {
++    const Game game = Game(Grid(size, field));
++  }
++}
+diff --git a/cpp/fast/tests/check_exit.py b/cpp/fast/tests/check_exit.py
+new file mode 100644
+index 0000000..037f26b
+--- /dev/null
++++ b/cpp/fast/tests/check_exit.py
+@@ -0,0 +1,25 @@
++# SPDX-FileCopyrightText: Copyright (c) 2026 Objectionary
++# SPDX-License-Identifier: MIT
++
++"""Exercise error exit statuses of the built fast CLI."""
++
++from pathlib import Path
++import subprocess
++
++executable = str(Path(__file__).resolve().parents[1] / 'fast_life')
++defaults = ['--size', '3x3', '--put', '1x1', '--batch', '0', '--sleep', '0']
++for option, value, message in [
++    ('--size', '0x3', 'Incorrect arguments in size option'),
++    ('--put', '4x1', 'You entered cells out of range'),
++    ('--put', 'invalid', 'You entered incorrect arguments in put option'),
++    ('--batch', '-1', 'Incorrect batch option value'),
++    ('--sleep', '-1', 'Incorrect sleep option value'),
++]:
++    arguments = defaults.copy()
++    arguments[arguments.index(option) + 1] = value
++    result = subprocess.run([executable, *arguments], capture_output=True, text=True, timeout=5)
++    assert result.returncode != 0, (arguments, result)
++    assert message in result.stderr and not result.stdout, (arguments, result)
++for arguments in [defaults, ['--help']]:
++    result = subprocess.run([executable, *arguments], capture_output=True, text=True, timeout=5)
++    assert result.returncode == 0 and not result.stderr, (arguments, result)

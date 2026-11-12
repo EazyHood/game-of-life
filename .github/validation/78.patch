@@ -1,0 +1,254 @@
+diff --git a/cpp/slow/src/parse.cpp b/cpp/slow/src/parse.cpp
+index 0c0cdfb..42b4a3f 100644
+--- a/cpp/slow/src/parse.cpp
++++ b/cpp/slow/src/parse.cpp
+@@ -1,95 +1,95 @@
+-// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
+-// SPDX-License-Identifier: MIT
+-
+-#include "../include/parse.h"
+-
+-#include <boost/program_options/variables_map.hpp>
+-#include <boost/range/algorithm/copy.hpp>
+-#include <cstdlib>
+-#include <iostream>
+-#include <string>
+-
+-using boost::program_options::variables_map;
+-using std::cout;
+-using std::stoi;
+-
+-int Parse::length() const { return numberN; }
+-
+-int Parse::width() const { return numberM; }
+-
+-vector<pair<int, int>> Parse::grid() { return points; }
+-
+-variables_map Parse::opts() { return vm; }
+-
+-bool Parse::has(const string& str, char val) {
+-  return str.find(val) < str.length() - 1 && str.find(val) > 0;
+-}
+-
+-pair<int, int> Parse::split(const string& str) {
+-  const int pos = static_cast<int>(str.find('x'));
+-  const int left = stoi(str.substr(0, pos));
+-  const int right = stoi(str.substr(pos + 1, str.length()));
+-  return {left, right};
+-}
+-
+-bool Parse::valid(string const& str) {
+-  const pair<int, int> val = split(str);
+-  return val.first > 0 && val.second > 0;
+-}
+-
+-pair<int, int> Parse::point(const string& str) const {
+-  if (has(str, 'x') && valid(str)) {
+-    auto res = split(str);
+-    if (res.first > numberN || res.second > numberM) {
+-      cout << "Incorrect input in put";
+-      exit(0);  // NOLINT(concurrency-mt-unsafe)
+-    }
+-    return res;
+-  }
+-  cout << "Incorrect input in put";
+-  exit(0);  // NOLINT(concurrency-mt-unsafe)
+-}
+-
+-pair<int, int> Parse::size(const string& str) {
+-  if (has(str, 'x') && valid(str)) {
+-    return split(str);
+-  }
+-  cout << "Incorrect input in size";
+-  exit(0);  // NOLINT(concurrency-mt-unsafe)
+-}
+-
+-void Parse::positive() {
+-  if (vm["batch"].as<int>() <= 0) {
+-    cout << "Incorrect batch input" << "\n";
+-    exit(0);  // NOLINT(concurrency-mt-unsafe)
+-  }
+-  if (vm["sleep"].as<int>() <= 0) {
+-    cout << "Incorrect sleep input" << "\n";
+-    exit(0);  // NOLINT(concurrency-mt-unsafe)
+-  }
+-}
+-
+-vector<pair<int, int>> Parse::rec_cells(int pos, vector<pair<int, int>> rec) {
+-  vector<string> strs = vm["put"].as<vector<string>>();
+-  if (pos == strs.size()) {
+-    return rec;
+-  }
+-  const pair<int, int> add = point(strs[pos]);
+-  vector<pair<int, int>> recs(rec.size() + 1);
+-  boost::copy(rec, recs.begin());
+-  recs[rec.size()] = add;
+-  return rec_cells(pos + 1, recs);
+-}
+-
+-void Parse::cells() {
+-  const vector<pair<int, int>> free;
+-  points = rec_cells(0, free);
+-}
+-
+-void Parse::build() {
+-  positive();
+-  const pair<int, int> data = size(vm["size"].as<string>());
+-  numberN = data.first;
+-  numberM = data.second;
+-  cells();
+-}
++// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
++// SPDX-License-Identifier: MIT
++
++#include "../include/parse.h"
++
++#include <boost/program_options/variables_map.hpp>
++#include <boost/range/algorithm/copy.hpp>
++#include <cstdlib>
++#include <iostream>
++#include <string>
++
++using boost::program_options::variables_map;
++using std::cout;
++using std::stoi;
++
++int Parse::length() const { return numberN; }
++
++int Parse::width() const { return numberM; }
++
++vector<pair<int, int>> Parse::grid() { return points; }
++
++variables_map Parse::opts() { return vm; }
++
++bool Parse::has(const string& str, char val) {
++  return str.find(val) < str.length() - 1 && str.find(val) > 0;
++}
++
++pair<int, int> Parse::split(const string& str) {
++  const int pos = static_cast<int>(str.find('x'));
++  const int left = stoi(str.substr(0, pos));
++  const int right = stoi(str.substr(pos + 1, str.length()));
++  return {left, right};
++}
++
++bool Parse::valid(string const& str) {
++  const pair<int, int> val = split(str);
++  return val.first > 0 && val.second > 0;
++}
++
++pair<int, int> Parse::point(const string& str) const {
++  if (has(str, 'x') && valid(str)) {
++    auto res = split(str);
++    if (res.first > numberN || res.second > numberM) {
++      cout << "Incorrect input in put";
++      exit(0);  // NOLINT(concurrency-mt-unsafe)
++    }
++    return res;
++  }
++  cout << "Incorrect input in put";
++  exit(0);  // NOLINT(concurrency-mt-unsafe)
++}
++
++pair<int, int> Parse::size(const string& str) {
++  if (has(str, 'x') && valid(str)) {
++    return split(str);
++  }
++  cout << "Incorrect input in size";
++  exit(0);  // NOLINT(concurrency-mt-unsafe)
++}
++
++void Parse::positive() {
++  if (vm.count("batch") > 0 && vm["batch"].as<int>() <= 0) {
++    cout << "Incorrect batch input" << "\n";
++    exit(0);  // NOLINT(concurrency-mt-unsafe)
++  }
++  if (vm["sleep"].as<int>() <= 0) {
++    cout << "Incorrect sleep input" << "\n";
++    exit(0);  // NOLINT(concurrency-mt-unsafe)
++  }
++}
++
++vector<pair<int, int>> Parse::rec_cells(int pos, vector<pair<int, int>> rec) {
++  vector<string> strs = vm["put"].as<vector<string>>();
++  if (pos == strs.size()) {
++    return rec;
++  }
++  const pair<int, int> add = point(strs[pos]);
++  vector<pair<int, int>> recs(rec.size() + 1);
++  boost::copy(rec, recs.begin());
++  recs[rec.size()] = add;
++  return rec_cells(pos + 1, recs);
++}
++
++void Parse::cells() {
++  const vector<pair<int, int>> free;
++  points = rec_cells(0, free);
++}
++
++void Parse::build() {
++  positive();
++  const pair<int, int> data = size(vm["size"].as<string>());
++  numberN = data.first;
++  numberM = data.second;
++  cells();
++}
+diff --git a/cpp/slow/tests/Parse_Tests/test_points_get.cpp b/cpp/slow/tests/Parse_Tests/test_points_get.cpp
+index 2d4b544..24a19c1 100644
+--- a/cpp/slow/tests/Parse_Tests/test_points_get.cpp
++++ b/cpp/slow/tests/Parse_Tests/test_points_get.cpp
+@@ -1,18 +1,36 @@
+-// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
+-// SPDX-License-Identifier: MIT
+-
+-#include <boost/test/unit_test.hpp>
+-
+-#include "../../include/cell.h"
+-#include "../../include/field.h"
+-#include "../../include/parse.h"
+-
+-BOOST_AUTO_TEST_CASE(test_points_get) {
+-  Parse p = Parse();
+-  auto res = p.point("11x3");
+-  BOOST_REQUIRE(res.first == 11 && res.second == 3);
+-  res = p.point("5x100");
+-  BOOST_REQUIRE(res.first == 5 && res.second == 100);
+-  res = p.point("3x1");
+-  BOOST_REQUIRE(res.first == 3 && res.second == 1);
+-}
++// SPDX-FileCopyrightText: Copyright (c) 2022 Anton Shatokhin
++// SPDX-License-Identifier: MIT
++
++#include <boost/test/unit_test.hpp>
++
++#include "../../include/cell.h"
++#include "../../include/field.h"
++#include "../../include/parse.h"
++
++BOOST_AUTO_TEST_CASE(test_points_get) {
++  Parse p = Parse();
++  auto res = p.point("11x3");
++  BOOST_REQUIRE(res.first == 11 && res.second == 3);
++  res = p.point("5x100");
++  BOOST_REQUIRE(res.first == 5 && res.second == 100);
++  res = p.point("3x1");
++  BOOST_REQUIRE(res.first == 3 && res.second == 1);
++}
++
++BOOST_AUTO_TEST_CASE(test_builds_without_batch) {
++  po::options_description options;
++  options.add_options()("size", po::value<string>())(
++    "put", po::value<vector<string>>())("sleep", po::value<int>());
++  const vector<string> args = {"--size", "3x4", "--put", "1x2", "--sleep", "1"};
++  po::variables_map values;
++  po::store(po::command_line_parser(args).options(options).run(), values);
++  po::notify(values);
++  Parse parsed(values);
++  BOOST_CHECK_NO_THROW(parsed.build());
++  BOOST_CHECK_EQUAL(parsed.length(), 3);
++  BOOST_CHECK_EQUAL(parsed.width(), 4);
++  BOOST_REQUIRE_EQUAL(parsed.grid().size(), 1);
++  BOOST_CHECK_EQUAL(parsed.grid().front().first, 1);
++  BOOST_CHECK_EQUAL(parsed.grid().front().second, 2);
++  BOOST_CHECK_EQUAL(parsed.opts().count("batch"), 0);
++}
